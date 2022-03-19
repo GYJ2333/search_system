@@ -1,0 +1,62 @@
+syntax = "proto3";
+
+package search_query_feature;
+
+message ResponseHeader {
+    uint32 code = 1;
+    string err = 3;
+}
+
+enum SetType {
+    TYPE_UNKNOWN = 0;
+    TYPE_UPDATE = 1;
+    TYPE_ADD = 2;
+    TYPE_DELETE = 3;
+}
+
+message Query {
+    reserved 5 to 15;
+    string query_id = 1; // query 唯一id
+    string query_name = 2; // query名
+    string kind = 3; // query 所属品类
+    string feature = 4; // query特征
+
+    map<string,string> ext= 16; // 扩展字段
+}
+
+message OfflineRequest {
+    reserved 3 to 15;
+    SetType type = 1; // 请求类型
+    repeated Query querys = 2; // 同一个请求可以写入多个query
+    
+    map<string, string> ext = 16;   // 扩展字段
+}
+
+message Status {
+    string query_id = 1; // query id
+    bool ok = 2; // 是否成功
+    string msg = 3; // 错误信息
+}
+
+message OfflineResponse {
+    ResponseHeader header = 1;
+    repeated Status query_status = 2;
+}
+
+message OnlineRequest {
+    reserved 3 to 15;
+    string user_id = 2; // 用户id
+    repeated string features = 1;   // 需要下面哪些特征 （空表示all）
+    
+    map<string, string> ext = 16;  // 扩展字段
+}
+
+message OnlineResponse {
+    ResponseHeader header = 1;
+    repeated string query_ids = 2; // 查询结果，query_id 列表
+}
+
+service Feature {
+    rpc Get(OnlineRequest) returns(OnlineResponse);
+    rpc Set(OfflineRequest) returns(OfflineResponse);
+}
