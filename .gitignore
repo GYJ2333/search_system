@@ -1,1 +1,5 @@
 search_system.exe
+log/*.log
+data/index/*
+data/profile/*
+data/query/*

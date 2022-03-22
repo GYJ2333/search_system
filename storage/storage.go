@@ -6,7 +6,7 @@ import (
 	"os"
 
 	"github.com/GYJ2333/search_system/log"
-	"github.com/valyala/gozstd"
+	"github.com/GYJ2333/search_system/tool"
 )
 
 type SProxy struct {
@@ -17,6 +17,7 @@ func (sp *SProxy) Init(storagePath string) {
 	sp.rootPath = storagePath
 }
 
+// TODO 功能验证结束之后  补充压缩
 func (sp *SProxy) Write(key string, value []byte) (err error) {
 	f, err := os.OpenFile(sp.rootPath+key, os.O_CREATE|os.O_RDWR|os.O_TRUNC, 0766)
 	defer func() {
@@ -44,8 +45,7 @@ func (sp *SProxy) Read(key string) ([]byte, error) {
 		return nil, fmt.Errorf("read file(%s) err(%v)", key, err)
 	}
 
-	decompressedData := make([]byte, len(rowData)*2)
-	decompressedData, err = gozstd.Decompress(decompressedData, rowData)
+	decompressedData, err := tool.Decompress(rowData)
 	if err != nil {
 		log.StorageLogger.Printf("Decompress file(%s) err(%v)", key, err)
 		return nil, fmt.Errorf("decompress file(%s) err(%v)", key, err)
