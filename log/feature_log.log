@@ -1,9 +1,0 @@
-2022/03/19 19:03:47 feature_process.go:54: Feature yaml(map[:[] 食物:[味道 价格 颜色 口感]])
-2022/03/19 19:03:47 search_system.go:163: Processer init success
-2022/03/19 19:05:34 feature_process.go:54: Feature yaml(map[:[] 食物:[味道 价格 颜色 口感]])
-2022/03/19 19:05:34 search_system.go:166: Processer init success
-2022/03/19 19:05:42 search_system.go:128: aa
-2022/03/19 19:06:45 feature_process.go:54: Feature yaml(map[:[] 食物:[味道 价格 颜色 口感]])
-2022/03/19 19:06:45 search_system.go:163: Processer init success
-2022/03/19 19:09:20 feature_process.go:54: Feature yaml(map[:[] 食物:[味道 价格 颜色 口感]])
-2022/03/19 19:09:20 search_system.go:164: Processer init success

@@ -12,7 +12,6 @@ import (
 )
 
 func main() {
-	// TODO 补齐log文件名
 	if err := log.Init("./log/feature_log.log", "./log/profile_log.log", "./log/storage_log.log"); err != nil {
 		fmt.Printf("logger init err(%v)\n", err)
 		return

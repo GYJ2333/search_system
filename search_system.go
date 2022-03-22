@@ -94,7 +94,7 @@ func (s *Searcher) Write(querys []*searchPb.Query, rsp *searchPb.OfflineResponse
 		go s.innerWrite(v, i, ch)
 	}
 
-	// 牺牲一些时间成本  串行调整rsp的顺序 使其与req相同  可以尝试直接使用数组加锁的方式来解决此问题  但是也需要考虑效率问题
+	// 牺牲一些时间成本  串行调整rsp的顺序 使其与req相同  可以尝试直接使用数组加锁的方式 在协程中解决此问题  但是也需要考虑效率问题
 	rsp.QueryStatus = make([]*searchPb.Status, len(querys))
 	for flag := true; flag; {
 		select {
