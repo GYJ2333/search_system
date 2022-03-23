@@ -26,6 +26,8 @@ type Processer interface {
 	// 入参为待写入query，以及存储中的query数据
 	// 返回值为待写入存储的query数据以及索引表数据
 	ProcessData(query *searchPb.Query, storageQueryData []byte) ([]byte, error)
+	// 删除query，即删除索引表中对应的queryId
+	DeleteData(query *searchPb.Query, storageQueryData []byte) error
 	// 配套的打分手段
 }
 
@@ -65,19 +67,6 @@ func (p *DefaultProcesser) ProcessData(query *searchPb.Query, storageQueryData [
 	}
 
 	return p.innerProcess(query, storageQueryData)
-
-	// // 存量数据中没有查询到待写入数据，直接将待写入数据写入
-	// if storageQueryData == nil {
-	// 	if newQueryData, err = p.marshalQueryData(query); err != nil {
-	// 		log.FeatureLogger.Printf("Marshal query data err(%v)", err)
-	// 		err = fmt.Errorf("marshal query data err(%v)", err)
-	// 		return
-	// 	}
-	// 	// 并发写入倒排索引表中
-
-	// 	return
-	// }
-	// return p.mergeData(query, storageQueryData)
 }
 
 // 1.将新旧数据解码为map
@@ -120,8 +109,8 @@ func (p *DefaultProcesser) marshalQueryData(query *searchPb.Query, storageQueryD
 		// 将原数据解析为map
 		err = json.Unmarshal(storageQueryData, &oldDataMap)
 		if err != nil {
-			log.FeatureLogger.Printf("Unmarshal rowData(%s) err(%v)", query.QueryId, err)
-			return nil, nil, fmt.Errorf("unmarshal rowData(%s) err(%v)", query.QueryId, err)
+			log.FeatureLogger.Printf("Unmarshal oldData(%s) err(%v)", query.QueryId, err)
+			return nil, nil, fmt.Errorf("unmarshal oldData(%s) err(%v)", query.QueryId, err)
 		}
 	}
 
@@ -156,7 +145,7 @@ func (p *DefaultProcesser) addIndex(key, queryId string) {
 		}
 		return
 	}
-	// data不为空，merge新旧数据，写入merge后的数据
+	// 将待写入的queryID写入索引表中
 	data = append(data, tool.String2Bytes(","+queryId)...)
 	if err := p.indexStorage.Write(key, data); err != nil {
 		log.FeatureLogger.Printf("Write index file err(%v)", err)
@@ -168,14 +157,24 @@ func (p *DefaultProcesser) deleteIndex(key, queryId string) {
 	defer wg.Done()
 	data, _ := p.indexStorage.Read(key)
 	// data为空，报错日志并返回
-	if data == nil {
-		log.FeatureLogger.Printf("Terrible thing! Index and Query's feature don't match!!!!!")
+	if data == nil || len(data) < len(queryId) {
+		log.FeatureLogger.Printf("Terrible thing! Index(%s) and Query(%s)'s feature don't match!!!!!", key, queryId)
 		return
 	}
 	// data不为空，merge新旧数据，写入merge后的数据
-	newData := strings.Replace(*tool.Bytes2String(data), queryId, "", 1)
-	if err := p.indexStorage.Write(key, tool.String2Bytes(newData)); err != nil {
-		log.FeatureLogger.Printf("Write index file err(%v)", err)
+	if *tool.Bytes2String(data[:len(queryId)]) == queryId {
+		if len(data) == len(queryId) {
+			data = []byte{}
+		} else {
+			data = data[len(queryId)+1:]
+		}
+	} else {
+		data = tool.String2Bytes(strings.Replace(*tool.Bytes2String(data), ","+queryId, "", 1))
+	}
+	if len(data) == 0 {
+		p.indexStorage.Delete(key)
+	}else if err := p.indexStorage.Write(key, tool.String2Bytes(string(data))); err != nil {
+		log.FeatureLogger.Printf("Write index(%s) file after delete(%s) err(%v)", key, queryId, err)
 	}
 }
 
@@ -189,4 +188,21 @@ func (p *DefaultProcesser) processQuery(newDataMap map[string]string, oldDataMap
 		resMap[k] = v
 	}
 	return json.Marshal(resMap)
+}
+
+func (p *DefaultProcesser) DeleteData(query *searchPb.Query, storageQueryData []byte) error {
+	defer wg.Wait()
+	if storageQueryData == nil {
+		return fmt.Errorf("query(%s) has been deleted", query.QueryId)
+	}
+	oldDataMap := map[string]interface{}{}
+	if err := json.Unmarshal(storageQueryData, &oldDataMap); err != nil {
+		log.FeatureLogger.Printf("Unmarshal oldData(%s) err(%v)", query.QueryId, err)
+		return fmt.Errorf("unmarshal oldData(%s) err(%v)", query.QueryId, err)
+	}
+	for _, v := range oldDataMap {
+		wg.Add(1)
+		go p.deleteIndex(v.(string), query.QueryId)
+	}
+	return nil
 }

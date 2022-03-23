@@ -48,7 +48,7 @@ func (s *Searcher) Set(ctx context.Context, req *searchPb.OfflineRequest, rsp *s
 			return err
 		}
 	case searchPb.SetType_TYPE_DELETE:
-		if err = s.Delete(req.Querys); err != nil {
+		if err = s.Delete(req.Querys, rsp); err != nil {
 			log.FeatureLogger.Printf("Delete data err(%v)", err)
 			makeOfflineRspHeader(rsp, 1, fmt.Sprintf("Delete data err(%v)\n", err))
 			return err
@@ -120,17 +120,17 @@ func (s *Searcher) innerWrite(query *searchPb.Query, position int, resChan chan<
 		position: position,
 		status:   searchPb.Status{QueryId: query.QueryId},
 	}
+	if query.QueryId == "" || query.Feature == "" || query.Kind == "" || query.QueryName == "" {
+		log.FeatureLogger.Print("Invalid request query!Please check data's completeness")
+		res.status.Msg = "Invalid request query!Please check data's completeness"
+		return
+	}
 	defer func() {
 		resChan <- res
 		wg.Done()
 	}()
 	// 读取旧数据
 	storageData, _ := s.queryStorage.Read(query.QueryId)
-	// if err != nil {
-	// 	log.FeatureLogger.Printf("Read query(%s) err(%v)", query.QueryId, err)
-	// 	res.status.Msg = err.Error()
-	// 	return
-	// }
 	// 数据处理 得到待写入数据
 	newQueryData, err := s.processer.ProcessData(query, storageData)
 	if err != nil {
@@ -150,8 +150,66 @@ func (s *Searcher) innerWrite(query *searchPb.Query, position int, resChan chan<
 }
 
 // 删除数据
-func (s *Searcher) Delete(querys []*searchPb.Query) error {
+func (s *Searcher) Delete(querys []*searchPb.Query, rsp *searchPb.OfflineResponse) error {
+	if querys == nil {
+		log.FeatureLogger.Println("empty data")
+		return fmt.Errorf("empty data")
+	}
+
+	ch := make(chan pkg, len(querys))
+	for i, v := range querys {
+		wg.Add(1)
+		go s.innerDelete(v, i, ch)
+	}
+
+	// 牺牲一些时间成本  串行调整rsp的顺序 使其与req相同  可以尝试直接使用数组加锁的方式 在协程中解决此问题  但是也需要考虑效率问题
+	rsp.QueryStatus = make([]*searchPb.Status, len(querys))
+	for flag := true; flag; {
+		select {
+		case v := <-ch:
+			rsp.QueryStatus[v.position] = &v.status
+		case <-time.After(time.Second * 1):
+			flag = false
+		}
+	}
+
+	wg.Wait()
 	return nil
+}
+
+// 对query数据的Delete
+func (s *Searcher) innerDelete(query *searchPb.Query, position int, resChan chan<- pkg) {
+	res := pkg{
+		position: position,
+		status:   searchPb.Status{QueryId: query.QueryId},
+	}
+	if query.QueryId == "" {
+		log.FeatureLogger.Print("Invalid request query!Please check data's completeness")
+		res.status.Msg = "Invalid request query!Please check data's completeness"
+		return
+	}
+	defer func() {
+		resChan <- res
+		wg.Done()
+	}()
+	// 读取旧数据
+	storageData, _ := s.queryStorage.Read(query.QueryId)
+	// 删除对应的索引文件
+	err := s.processer.DeleteData(query, storageData)
+	if err != nil {
+		log.FeatureLogger.Printf("Delete query(%v)'s index file err(%v)", query.QueryId, err)
+		res.status.Msg = err.Error()
+		return
+	}
+	// 删除query数据对应的文件
+	if err := s.queryStorage.Delete(query.QueryId); err != nil {
+		log.FeatureLogger.Printf("Delete query(%s) err(%v)", query.QueryId, err)
+		res.status.Msg = err.Error()
+		return
+	}
+	// 正常结束
+	res.status.Ok = true
+	res.status.Msg = "success"
 }
 
 // 注册processer

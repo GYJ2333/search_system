@@ -38,6 +38,7 @@ func (sp *SProxy) Write(key string, value []byte) (err error) {
 	return nil
 }
 
+// TODO write补齐压缩之后  将兜底逻辑删除
 func (sp *SProxy) Read(key string) ([]byte, error) {
 	rowData, err := ioutil.ReadFile(sp.rootPath + key)
 	if err != nil {
@@ -47,12 +48,14 @@ func (sp *SProxy) Read(key string) ([]byte, error) {
 
 	decompressedData, err := tool.Decompress(rowData)
 	if err != nil {
-		log.StorageLogger.Printf("Decompress file(%s) err(%v)", key, err)
-		return nil, fmt.Errorf("decompress file(%s) err(%v)", key, err)
+		// log.StorageLogger.Printf("Decompress file(%s) err(%v)", key, err)
+		// return nil, fmt.Errorf("decompress file(%s) err(%v)", key, err)
+		log.StorageLogger.Printf("Read(%s)", rowData)
+		return rowData, fmt.Errorf("read(%s)", rowData)
 	}
 	return decompressedData, nil
 }
 
-func (sp *SProxy) Delete() error {
-	return nil
+func (sp *SProxy) Delete(key string) error {
+	return os.Remove(sp.rootPath + key)
 }
