@@ -51,7 +51,7 @@ func (sp *SProxy) Read(key string) ([]byte, error) {
 		// log.StorageLogger.Printf("Decompress file(%s) err(%v)", key, err)
 		// return nil, fmt.Errorf("decompress file(%s) err(%v)", key, err)
 		log.StorageLogger.Printf("Read(%s)", rowData)
-		return rowData, fmt.Errorf("read(%s)", rowData)
+		return rowData, nil
 	}
 	return decompressedData, nil
 }
