@@ -56,7 +56,20 @@ message OnlineResponse {
     repeated string query_ids = 2; // 查询结果，query_id 列表
 }
 
+message ChoseRequest {
+    reserved 3 to 15;
+    string user_id = 1;
+    string query_id = 2;   // 需要下面哪些特征 （空表示all）
+    
+    map<string, string> ext = 16;  // 扩展字段
+}
+
+message ChoseResponse {
+    ResponseHeader header = 1;
+}
+
 service Feature {
     rpc Get(OnlineRequest) returns(OnlineResponse);
     rpc Set(OfflineRequest) returns(OfflineResponse);
+    rpc Chose(ChoseRequest) returns(ChoseResponse);
 }

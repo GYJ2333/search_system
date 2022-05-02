@@ -36,6 +36,7 @@ var _ server.Option
 type FeatureService interface {
 	Get(ctx context.Context, in *OnlineRequest, opts ...client.CallOption) (*OnlineResponse, error)
 	Set(ctx context.Context, in *OfflineRequest, opts ...client.CallOption) (*OfflineResponse, error)
+	Chose(ctx context.Context, in *ChoseRequest, opts ...client.CallOption) (*ChoseResponse, error)
 }
 
 type featureService struct {
@@ -76,17 +77,29 @@ func (c *featureService) Set(ctx context.Context, in *OfflineRequest, opts ...cl
 	return out, nil
 }
 
+func (c *featureService) Chose(ctx context.Context, in *ChoseRequest, opts ...client.CallOption) (*ChoseResponse, error) {
+	req := c.c.NewRequest(c.name, "Feature.Chose", in)
+	out := new(ChoseResponse)
+	err := c.c.Call(ctx, req, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // Server API for Feature service
 
 type FeatureHandler interface {
 	Get(context.Context, *OnlineRequest, *OnlineResponse) error
 	Set(context.Context, *OfflineRequest, *OfflineResponse) error
+	Chose(context.Context, *ChoseRequest, *ChoseResponse) error
 }
 
 func RegisterFeatureHandler(s server.Server, hdlr FeatureHandler, opts ...server.HandlerOption) error {
 	type feature interface {
 		Get(ctx context.Context, in *OnlineRequest, out *OnlineResponse) error
 		Set(ctx context.Context, in *OfflineRequest, out *OfflineResponse) error
+		Chose(ctx context.Context, in *ChoseRequest, out *ChoseResponse) error
 	}
 	type Feature struct {
 		feature
@@ -105,4 +118,8 @@ func (h *featureHandler) Get(ctx context.Context, in *OnlineRequest, out *Online
 
 func (h *featureHandler) Set(ctx context.Context, in *OfflineRequest, out *OfflineResponse) error {
 	return h.FeatureHandler.Set(ctx, in, out)
+}
+
+func (h *featureHandler) Chose(ctx context.Context, in *ChoseRequest, out *ChoseResponse) error {
+	return h.FeatureHandler.Chose(ctx, in, out)
 }
